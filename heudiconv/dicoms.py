@@ -218,6 +218,7 @@ def group_dicoms_into_seqinfos(files, file_filter, dcmfilter, grouping):
             dcminfo.get('PatientAge'),
             dcminfo.get('PatientSex'),
             dcminfo.get('AcquisitionDate'),
+            dcminfo.get('SeriesInstanceUID')
         )
         # candidates
         # dcminfo.AccessionNumber
