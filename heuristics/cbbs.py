@@ -1,5 +1,5 @@
 import logging
-import pprint
+
 lgr = logging.getLogger(__name__)
 
 
@@ -20,35 +20,33 @@ def get_study_spec():
         return []
 
 _study_spec = get_study_spec()
-pprint.pprint(_study_spec)
 
 
-# TODO
-# Note: That doesn't work yet.
-# Don't get it. seqinfos is coming in prefilled from dicom. So, what's the
-# point in requiring this function? Apart from that shortly after heudiconv
-# crashes with dict not hashable. Sth is wrong here.
-# def infotoids(seqinfos, outdir):
-#     # needed if we don't want to specify subject ids on command line
-#     # would need to return sth like this (see dbic_bids):
-#     # {
-#     # # TODO: request info on study from the JedCap
-#     # 'locator': locator,
-#     # # Sessions to be deduced yet from the names etc TODO
-#     # 'session': session,
-#     # 'subject': subject,
-#     # }
-#     # Not sure, whether it is sufficient to provide kw 'subject' only
-#     # TODO: "session"? A single one? Is this "the other session"?
-#     subject = set(s['subject']['value'] for s in _study_spec)
-#     if len(subject) == 1:
-#         return {'locator': '',
-#                 'session': None,
-#                 'subject': subject}
-#     else:
-#         lgr.warning("Found %s candidates for 'subject': %s" %
-#                     (len(subject), subject))
-#         return {}
+def validate_spec(spec):
+
+    if not spec:
+        raise ValueError("Image series specification is empty.")
+
+    if spec['type'] != 'dicomseries':
+        raise ValueError("Specification not of type 'dicomseries'.")
+
+    if 'uid' not in spec.keys() or not spec['uid']:
+        raise ValueError("Invalid image series UID.")
+
+    # subject
+    if 'subject' not in spec.keys() or not spec['subject']['value']:
+        raise ValueError("Found no subject in specification for series %s." %
+                         spec['uid'])
+
+    if spec['converter']['value'] == 'ignore':
+        lgr.debug("Skip series %s (marked 'ignore' in spec)", spec['uid'])
+        return False
+
+    if spec['converter']['value'] != 'heudiconv':
+        lgr.debug("Skip series %s since it's not supposed to be converted by "
+                  "heudiconv.", spec['uid'])
+        return False
+    return True
 
 
 def infotodict(seqinfo):
@@ -69,24 +67,15 @@ def infotodict(seqinfo):
         candidates = [series for series in _study_spec
                       if str(s.uid) == series['uid']]
         if not candidates:
-            print("No candidates")
-            print("Skip idx: %s" % idx)
-            print("s.uid was: %s" % s.uid)
-            lgr.warning("Found no match for seqinfo: %s" % str(s))
-            continue
+            raise ValueError("Found no match for seqinfo: %s" % str(s))
         if len(candidates) != 1:
-            print("Multiple candidates")
-            print("Skip idx: %s" % idx)
-            print("s.uid was: %s" % s.uid)
-            lgr.warning("Found %s match(es) for series UID %s" %
-                        (len(candidates), s.uid))
-            continue
-        print("Processing idx: %s" % idx)
+            raise ValueError("Found %s match(es) for series UID %s" %
+                             (len(candidates), s.uid))
         series_spec = candidates[0]
 
-        # subject
-        if not series_spec['subject']['value']:
-            lgr.warning("Found no subject in specification for series %s" % series_spec['uid'])
+        if not validate_spec(series_spec):
+            lgr.debug("Series invalid (%s). Skip.", str(s.uid))
+            continue
 
         dirname = filename = "sub-{}".format(series_spec['subject']['value'])
         # session
