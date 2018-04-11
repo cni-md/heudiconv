@@ -7,7 +7,6 @@ import re
 import sys
 import shutil
 import copy
-import logging
 import stat
 import os.path as op
 from pathlib import Path
@@ -122,28 +121,6 @@ def create_file_if_missing(filename, content):
     return True
 
 
-def mark_sensitive(ds, path_glob=None):
-    """
-
-    Parameters
-    ----------
-    ds : Dataset to operate on
-    path_glob : str, optional
-      glob of the paths within dataset to work on
-    Returns
-    -------
-    None
-    """
-    sens_kwargs = dict(
-        init=[('distribution-restrictions', 'sensitive')]
-    )
-    if path_glob:
-        paths = glob(op.join(ds.path, path_glob))
-        if not paths:
-            return
-        sens_kwargs['path'] = paths
-    ds.metadata(recursive=True, **sens_kwargs)
-
 def read_config(infile):
     with open(infile, 'rt') as fp:
         info = eval(fp.read())
@@ -224,12 +201,20 @@ def json_dumps_pretty(j, indent=2, sort_keys=True):
     # uniform no spaces before ]
     js_ = re.sub(" *\]", "]", js_)
     # uniform spacing before numbers
-    js_ = re.sub('  *("?[-+.0-9e]+"?)[ \n]*', r' \1', js_)
+    js_ = re.sub('  *("?[-+.0-9e]+"?)(?P<space> ?)[ \n]*',
+                 r' \1\g<space>', js_)
     # no spaces after [
     js_ = re.sub('\[ ', '[', js_)
-    j_ = json.loads(js_)
-    # Removed assert as it does not do any floating point comparison
-    #assert(j == j_)
+    # the load from the original dump and reload from tuned up
+    # version should result in identical values since no value
+    # must be changed, just formatting.
+    j_just_reloaded = json.loads(js)
+    j_tuned = json.loads(js_)
+
+    assert j_just_reloaded == j_tuned, \
+       "Values differed when they should have not. "\
+       "Report to the heudiconv developers"
+
     return js_
 
 
