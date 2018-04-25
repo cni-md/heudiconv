@@ -10,18 +10,34 @@ def create_key(template, outtype=('nii.gz',), annotation_classes=None):
     return template, outtype, annotation_classes
 
 
-def get_study_spec():
-    from os import environ
-    import datalad.support.json_py
-    filename = environ.get('CBBS_STUDY_SPEC')
-    if filename:
-        return [d for d in datalad.support.json_py.load_stream(filename)]
-    else:
-        return []
+class SpecLoader(object):
+    """
+    Persistent object to hold the study specification and not read the JSON on
+    each invocation of `infotodict`. Module level attribute for the spec itself
+    doesn't work, since the env variable isn't necessarily available at first
+    import.
+    """
 
-# TODO: considering env variable on import time might go wrong.
-# Probably leads a class for lazy evaluation on first invocation of infotodict()
-_study_spec = get_study_spec()
+    def __init__(self):
+        self._spec = None
+
+    def get_study_spec(self):
+        if self._spec is None:
+            from os import environ
+            import datalad.support.json_py
+            filename = environ.get('CBBS_STUDY_SPEC')
+            if filename:
+                self._spec = [d for d in
+                              datalad.support.json_py.load_stream(filename)]
+            else:
+                # TODO: Just raise or try a default location first?
+                raise ValueError("No study specification provided. "
+                                 "Set environment variable CBBS_STUDY_SPEC "
+                                 "to do so.")
+        return self._spec
+
+
+_spec = SpecLoader()
 
 
 def validate_spec(spec):
@@ -51,6 +67,13 @@ def validate_spec(spec):
     return True
 
 
+# TODO: can be removed, whenever nipy/heudiconv #197 is solved
+def infotoids(seqinfos, outdir):
+    return {'locator': None,
+            'session': None,
+            'subject': None}
+
+
 def infotodict(seqinfo):
     """Heuristic evaluator for determining which runs belong where
 
@@ -66,7 +89,7 @@ def infotodict(seqinfo):
     for idx, s in enumerate(seqinfo):
 
         # find in spec:
-        candidates = [series for series in _study_spec
+        candidates = [series for series in _spec.get_study_spec()
                       if str(s.uid) == series['uid']]
         if not candidates:
             raise ValueError("Found no match for seqinfo: %s" % str(s))
