@@ -12,13 +12,15 @@ def create_key(template, outtype=('nii.gz',), annotation_classes=None):
 
 def get_study_spec():
     from os import environ
-    import json
+    import datalad.support.json_py
     filename = environ.get('CBBS_STUDY_SPEC')
     if filename:
-        return json.load(open(filename, 'r'))
+        return [d for d in datalad.support.json_py.load_stream(filename)]
     else:
         return []
 
+# TODO: considering env variable on import time might go wrong.
+# Probably leads a class for lazy evaluation on first invocation of infotodict()
 _study_spec = get_study_spec()
 
 
