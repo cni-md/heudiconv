@@ -64,6 +64,18 @@ def validate_spec(spec):
         lgr.debug("Skip series %s since it's not supposed to be converted by "
                   "heudiconv.", spec['uid'])
         return False
+
+    for k in spec.keys():
+        # automatically managed keys with no subdict:
+        # TODO: Where to define this list?
+        # TODO: Test whether those are actually present!
+        if k in ['type', 'status', 'location', 'uid', 'dataset_id',
+                 'dataset_refcommit']:
+            continue
+        if not spec[k]['value']:
+            lgr.warning("DICOM series specification (UID: {uid}) has no value "
+                        "for key '{key}'.".format(uid=spec['uid'], key=k))
+
     return True
 
 
@@ -104,7 +116,7 @@ def infotodict(seqinfo):
 
         dirname = filename = "sub-{}".format(series_spec['subject']['value'])
         # session
-        if series_spec['session']:
+        if series_spec['session'] and series_spec['session']['value']:
             dirname += "/ses-{}".format(series_spec['session']['value'])
             filename += "_ses-{}".format(series_spec['session']['value'])
 
