@@ -45,6 +45,28 @@ def validate_spec(spec):
     if not spec:
         raise ValueError("Image series specification is empty.")
 
+    # check converter
+    if spec['converter']['value'] == 'ignore':
+        lgr.debug("Skip series %s (marked 'ignore' in spec)", spec['uid'])
+        return False
+
+    if spec['converter']['value'] != 'heudiconv':
+        lgr.debug("Skip series %s since it's not supposed to be converted by "
+                  "heudiconv.", spec['uid'])
+        return False
+
+    # mandatory keys for any spec dict (not only dicomseries)
+    for k in spec.keys():
+        # automatically managed keys with no subdict:
+        # TODO: Where to define this list?
+        # TODO: Test whether those are actually present!
+        if k in ['type', 'status', 'location', 'uid', 'dataset_id',
+                 'dataset_refcommit']:
+            continue
+        if not spec[k]['value']:
+            lgr.warning("DICOM series specification (UID: {uid}) has no value "
+                        "for key '{key}'.".format(uid=spec['uid'], key=k))
+
     if spec['type'] != 'dicomseries':
         raise ValueError("Specification not of type 'dicomseries'.")
 
@@ -56,25 +78,10 @@ def validate_spec(spec):
         raise ValueError("Found no subject in specification for series %s." %
                          spec['uid'])
 
-    if spec['converter']['value'] == 'ignore':
-        lgr.debug("Skip series %s (marked 'ignore' in spec)", spec['uid'])
-        return False
-
-    if spec['converter']['value'] != 'heudiconv':
-        lgr.debug("Skip series %s since it's not supposed to be converted by "
-                  "heudiconv.", spec['uid'])
-        return False
-
-    for k in spec.keys():
-        # automatically managed keys with no subdict:
-        # TODO: Where to define this list?
-        # TODO: Test whether those are actually present!
-        if k in ['type', 'status', 'location', 'uid', 'dataset_id',
-                 'dataset_refcommit']:
-            continue
-        if not spec[k]['value']:
-            lgr.warning("DICOM series specification (UID: {uid}) has no value "
-                        "for key '{key}'.".format(uid=spec['uid'], key=k))
+    # data type
+    if 'data_type' not in spec.keys() or not spec['subject']['value']:
+        raise ValueError("Found no data type in specification for series %s." %
+                         spec['uid'])
 
     return True
 
@@ -121,22 +128,8 @@ def infotodict(seqinfo):
             filename += "_ses-{}".format(series_spec['session']['value'])
 
         # data type
-        # TODO: not in spec yet. Anything to derive from?
-        # Additional options according to BIDS: anat, dwi, fmap
-        # Note: Yarik uses such a mapping: should/could we too? (dbic_bids)
-        # image_data_type = s.image_type[2]
-        # image_type_seqtype = {
-        #     'P': 'fmap',   # phase
-        #     'FMRI': 'func',
-        #     'MPR': 'anat',
-        #     # 'M': 'func',  "magnitude"  -- can be for scout, anat, bold, fmap
-        #     'DIFFUSION': 'dwi',
-        #     'MIP_SAG': 'anat',  # angiography
-        #     'MIP_COR': 'anat',  # angiography
-        #     'MIP_TRA': 'anat',  # angiography
-        # }.get(image_data_type, None)
+        data_type = series_spec['data_type']['value']
 
-        data_type = 'func'
         dirname += "/{}".format(data_type)
         if data_type == 'func':
             # func/sub-<participant_label>[_ses-<session_label>]
@@ -160,7 +153,10 @@ def infotodict(seqinfo):
             if series_spec['run']['value']:
                 filename += "_run-{}".format(series_spec['run']['value'])
 
-            # TODO: [_mod-<label>]_<modality_label>
+            # TODO: [_mod-<label>]
+
+            if series_spec['modality'] and series_spec['modality']['value']:
+                filename += "_{}".format(series_spec['modality']['value'])
 
         # TODO: data_type: dwi, fmap
 
