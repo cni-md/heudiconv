@@ -479,7 +479,6 @@ def infotodict(seqinfo):
                     sfield, svalue)
 
         if not series_info:
-            import pdb; pdb.set_trace()
             series_spec = None  # we cannot know better
             lgr.warning(
                 "Could not determine the series name by looking at "
